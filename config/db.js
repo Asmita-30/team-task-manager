@@ -4,7 +4,6 @@ if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config();
 }
 
-// Create pool
 const pool = mysql.createPool({
   host: process.env.MYSQLHOST || 'localhost',
   user: process.env.MYSQLUSER || 'root',
@@ -16,26 +15,28 @@ const pool = mysql.createPool({
   queueLimit: 0
 });
 
-// Debug config
-console.log('📊 DB Config:', {
+console.log("📊 DB Connected Config:", {
   host: process.env.MYSQLHOST,
   user: process.env.MYSQLUSER,
   database: process.env.MYSQLDATABASE,
   port: process.env.MYSQLPORT
 });
 
-// Promise wrapper
-const query = (sql) => {
-  return new Promise((resolve, reject) => {
+const run = (sql, name) => {
+  return new Promise((resolve) => {
     pool.query(sql, (err) => {
-      if (err) reject(err);
-      else resolve();
+      if (err) {
+        console.error(`❌ ${name} error:`, err.message);
+      } else {
+        console.log(`✅ ${name} ready`);
+      }
+      resolve();
     });
   });
 };
 
-// TABLE QUERIES
-const usersTable = `
+// TABLES (clean)
+const users = `
 CREATE TABLE IF NOT EXISTS users (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
@@ -43,20 +44,18 @@ CREATE TABLE IF NOT EXISTS users (
   password VARCHAR(255) NOT NULL,
   role ENUM('admin','member') DEFAULT 'member',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-`;
+)`;
 
-const projectsTable = `
+const projects = `
 CREATE TABLE IF NOT EXISTS projects (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
   created_by INT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
-);
-`;
+)`;
 
-const projectMembersTable = `
+const members = `
 CREATE TABLE IF NOT EXISTS project_members (
   id INT AUTO_INCREMENT PRIMARY KEY,
   project_id INT NOT NULL,
@@ -64,10 +63,9 @@ CREATE TABLE IF NOT EXISTS project_members (
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   UNIQUE KEY unique_member (project_id, user_id)
-);
-`;
+)`;
 
-const tasksTable = `
+const tasks = `
 CREATE TABLE IF NOT EXISTS tasks (
   id INT AUTO_INCREMENT PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
@@ -79,46 +77,27 @@ CREATE TABLE IF NOT EXISTS tasks (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
   FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL
-);
-`;
+)`;
 
-// INIT DB (SAFE ORDER)
 const initDB = async () => {
-  try {
-    await query(usersTable);
-    console.log("✅ users table ready");
+  await run(users, "users");
+  await run(projects, "projects");
+  await run(members, "project_members");
+  await run(tasks, "tasks");
 
-    await query(projectsTable);
-    console.log("✅ projects table ready");
-
-    await query(projectMembersTable);
-    console.log("✅ project_members table ready");
-
-    await query(tasksTable);
-    console.log("✅ tasks table ready");
-
-    console.log("🚀 All tables created successfully!");
-  } catch (err) {
-    console.error("❌ DB INIT ERROR:", err.message);
-  }
+  console.log("🚀 ALL TABLES READY");
 };
 
 pool.getConnection((err, conn) => {
   if (err) {
-    console.error("❌ MySQL Connection Failed:", err.message);
+    console.error("❌ DB Connection failed:", err.message);
     process.exit(1);
   }
 
-  console.log("✅ Connected to MySQL successfully!");
+  console.log("✅ MySQL Connected!");
   conn.release();
 
   initDB();
 });
 
-// Error handling
-pool.on('error', (err) => {
-  console.error("❌ Pool Error:", err);
-});
-
-// Export
 module.exports = pool.promise();
