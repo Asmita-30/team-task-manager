@@ -8,7 +8,7 @@ const pool = mysql.createPool({
   port: Number(process.env.MYSQLPORT || 3306),
   waitForConnections: true,
   connectionLimit: 10,
-  multipleStatements: false  // explicit safety
+  multipleStatements: false
 });
 
 async function initDB() {
@@ -18,7 +18,7 @@ async function initDB() {
     conn = await pool.getConnection();
     console.log("✅ MySQL Connected");
 
-    // Run each table separately with individual try/catch for debugging
+    // 🔹 USERS
     await conn.query(`
       CREATE TABLE IF NOT EXISTS users (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -27,32 +27,41 @@ async function initDB() {
         password VARCHAR(255) NOT NULL,
         role ENUM('admin','member') DEFAULT 'member',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
+      ) ENGINE=InnoDB
     `);
     console.log("✅ users table ready");
 
-await conn.query(`
-  CREATE TABLE IF NOT EXISTS projects (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    created_by INT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
-  )
-`);
+    // 🔹 PROJECTS
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS projects (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        created_by INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT fk_projects_user
+          FOREIGN KEY (created_by) REFERENCES users(id)
+          ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    `);
     console.log("✅ projects table ready");
 
+    // 🔹 PROJECT MEMBERS
     await conn.query(`
       CREATE TABLE IF NOT EXISTS project_members (
         id INT AUTO_INCREMENT PRIMARY KEY,
         project_id INT NOT NULL,
         user_id INT NOT NULL,
-        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-      )
+        CONSTRAINT fk_pm_project
+          FOREIGN KEY (project_id) REFERENCES projects(id)
+          ON DELETE CASCADE,
+        CONSTRAINT fk_pm_user
+          FOREIGN KEY (user_id) REFERENCES users(id)
+          ON DELETE CASCADE
+      ) ENGINE=InnoDB
     `);
     console.log("✅ project_members table ready");
 
+    // 🔹 TASKS
     await conn.query(`
       CREATE TABLE IF NOT EXISTS tasks (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -63,9 +72,13 @@ await conn.query(`
         status ENUM('pending','in-progress','completed') DEFAULT 'pending',
         due_date DATE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-        FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL
-      )
+        CONSTRAINT fk_tasks_project
+          FOREIGN KEY (project_id) REFERENCES projects(id)
+          ON DELETE CASCADE,
+        CONSTRAINT fk_tasks_user
+          FOREIGN KEY (assigned_to) REFERENCES users(id)
+          ON DELETE SET NULL
+      ) ENGINE=InnoDB
     `);
     console.log("✅ tasks table ready");
 
