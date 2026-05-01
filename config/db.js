@@ -3,15 +3,26 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-// Create connection pool
+// Create connection pool using Railway's variables
 const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
+  host: process.env.MYSQLHOST || process.env.DB_HOST || 'localhost',
+  user: process.env.MYSQLUSER || process.env.DB_USER || 'root',
+  password: process.env.MYSQLPASSWORD || process.env.DB_PASSWORD || '',
+  database: process.env.MYSQLDATABASE || process.env.DB_NAME || 'task_manager',
+  port: process.env.MYSQLPORT || 3306,
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0
+  queueLimit: 0,
+  ssl: false  // Railway internal connection doesn't need SSL
+});
+
+// Log connection details for debugging
+console.log('📊 Database Connection Config:', {
+  host: process.env.MYSQLHOST,
+  user: process.env.MYSQLUSER,
+  database: process.env.MYSQLDATABASE,
+  port: process.env.MYSQLPORT,
+  isRailway: !!process.env.MYSQLHOST
 });
 
 // Create tables if not exists
@@ -56,13 +67,33 @@ CREATE TABLE IF NOT EXISTS tasks (
 );
 `;
 
-// Execute table creation
-pool.query(createTables, (err) => {
+// Test connection and create tables
+pool.getConnection((err, connection) => {
   if (err) {
-    console.error('Error creating tables:', err);
+    console.error('❌ Database connection failed!');
+    console.error('Error details:', err.message);
+    console.error('\n💡 Check:');
+    console.error('1. MySQL service is running');
+    console.error('2. Environment variables are set correctly');
+    process.exit(1); // Exit if can't connect to database
   } else {
-    console.log('Database tables ready');
+    console.log('✅ Connected to MySQL database successfully!');
+    
+    // Create tables
+    connection.query(createTables, (tableErr) => {
+      if (tableErr) {
+        console.error('❌ Error creating tables:', tableErr.message);
+      } else {
+        console.log('✅ Database tables created/verified successfully!');
+      }
+      connection.release();
+    });
   }
+});
+
+// Handle connection errors
+pool.on('error', (err) => {
+  console.error('Database pool error:', err);
 });
 
 // Promisify for async/await
