@@ -1,32 +1,39 @@
 const mysql = require('mysql2');
 
-// Load .env only in local (not needed in Railway)
 if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config();
 }
 
-// Create connection pool
+// Create pool
 const pool = mysql.createPool({
-  host: process.env.MYSQLHOST || process.env.DB_HOST || 'localhost',
-  user: process.env.MYSQLUSER || process.env.DB_USER || 'root',
-  password: process.env.MYSQLPASSWORD || process.env.DB_PASSWORD || '',
-  database: process.env.MYSQLDATABASE || process.env.DB_NAME || 'task_manager',
-  port: process.env.MYSQLPORT || process.env.DB_PORT || 3306,
+  host: process.env.MYSQLHOST || 'localhost',
+  user: process.env.MYSQLUSER || 'root',
+  password: process.env.MYSQLPASSWORD || '',
+  database: process.env.MYSQLDATABASE || 'task_manager',
+  port: process.env.MYSQLPORT || 3306,
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0,
-  multipleStatements: true
+  queueLimit: 0
 });
 
-// Debug log
-console.log('📊 Database Connection Config:', {
-  host: process.env.MYSQLHOST || process.env.DB_HOST,
-  user: process.env.MYSQLUSER || process.env.DB_USER,
-  database: process.env.MYSQLDATABASE || process.env.DB_NAME,
-  port: process.env.MYSQLPORT || process.env.DB_PORT,
-  isRailway: !!process.env.MYSQLHOST
+console.log('📊 DB Config:', {
+  host: process.env.MYSQLHOST,
+  user: process.env.MYSQLUSER,
+  database: process.env.MYSQLDATABASE,
+  port: process.env.MYSQLPORT
 });
 
+const run = (sql, name) => {
+  pool.query(sql, (err) => {
+    if (err) {
+      console.error(`❌ ${name} error:`, err.message);
+    } else {
+      console.log(`✅ ${name} ready`);
+    }
+  });
+};
+
+// TABLES
 run(`CREATE TABLE IF NOT EXISTS users (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
@@ -66,34 +73,5 @@ run(`CREATE TABLE IF NOT EXISTS tasks (
   FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL
 )`, "tasks");
 
-// Connect and initialize DB
-pool.getConnection((err, connection) => {
-  if (err) {
-    console.error('❌ Database connection failed!');
-    console.error('Error:', err.message);
-    console.error('\n💡 Check:');
-    console.error('1. Railway MySQL service connected');
-    console.error('2. Environment variables set');
-    process.exit(1);
-  }
-
-  console.log('✅ Connected to MySQL database!');
-
-  // Create tables
-  connection.query(createTables, (tableErr) => {
-    if (tableErr) {
-      console.error('❌ Error creating tables:', tableErr.message);
-    } else {
-      console.log('✅ Tables ready!');
-    }
-    connection.release();
-  });
-});
-
-// Handle pool errors
-pool.on('error', (err) => {
-  console.error('❌ Pool error:', err);
-});
-
-// Export promise version (for async/await)
+// Export
 module.exports = pool.promise();
