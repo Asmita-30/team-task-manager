@@ -27,7 +27,7 @@ console.log('📊 Database Connection Config:', {
   isRailway: !!process.env.MYSQLHOST
 });
 
-runQuery(`CREATE TABLE IF NOT EXISTS users (
+run(`CREATE TABLE IF NOT EXISTS users (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
   email VARCHAR(100) UNIQUE NOT NULL,
@@ -36,7 +36,7 @@ runQuery(`CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )`, "users");
 
-runQuery(`CREATE TABLE IF NOT EXISTS projects (
+run(`CREATE TABLE IF NOT EXISTS projects (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
   created_by INT NOT NULL,
@@ -44,7 +44,7 @@ runQuery(`CREATE TABLE IF NOT EXISTS projects (
   FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
 )`, "projects");
 
-runQuery(`CREATE TABLE IF NOT EXISTS project_members (
+run(`CREATE TABLE IF NOT EXISTS project_members (
   id INT AUTO_INCREMENT PRIMARY KEY,
   project_id INT NOT NULL,
   user_id INT NOT NULL,
@@ -53,7 +53,7 @@ runQuery(`CREATE TABLE IF NOT EXISTS project_members (
   UNIQUE KEY unique_member (project_id, user_id)
 )`, "project_members");
 
-runQuery(`CREATE TABLE IF NOT EXISTS tasks (
+run(`CREATE TABLE IF NOT EXISTS tasks (
   id INT AUTO_INCREMENT PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
   description TEXT,
