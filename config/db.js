@@ -13,48 +13,44 @@ const pool = mysql.createPool({
 const query = (sql, name) => {
   return new Promise((resolve) => {
     pool.query(sql, (err) => {
-      if (err) console.error("❌", name, err.message);
-      else console.log("✅", name);
+      if (err) console.error(`❌ ${name}:`, err.message);
+      else console.log(`✅ ${name}`);
       resolve();
     });
   });
 };
 
-// ONLY PURE SQL STRINGS (NO EXTRA TEXT)
-const users = `
-CREATE TABLE IF NOT EXISTS users (
+// PURE SQL ONLY (NO EXTRA TEXT ANYWHERE)
+const users = `CREATE TABLE IF NOT EXISTS users (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(100),
-  email VARCHAR(100) UNIQUE,
-  password VARCHAR(255),
+  name VARCHAR(100) NOT NULL,
+  email VARCHAR(100) UNIQUE NOT NULL,
+  password VARCHAR(255) NOT NULL,
   role ENUM('admin','member') DEFAULT 'member',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )`;
 
-const projects = `
-CREATE TABLE IF NOT EXISTS projects (
+const projects = `CREATE TABLE IF NOT EXISTS projects (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(100),
-  created_by INT,
+  name VARCHAR(100) NOT NULL,
+  created_by INT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (created_by) REFERENCES users(id)
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
 )`;
 
-const members = `
-CREATE TABLE IF NOT EXISTS project_members (
+const members = `CREATE TABLE IF NOT EXISTS project_members (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  project_id INT,
-  user_id INT,
-  FOREIGN KEY (project_id) REFERENCES projects(id),
-  FOREIGN KEY (user_id) REFERENCES users(id)
+  project_id INT NOT NULL,
+  user_id INT NOT NULL,
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 )`;
 
-const tasks = `
-CREATE TABLE IF NOT EXISTS tasks (
+const tasks = `CREATE TABLE IF NOT EXISTS tasks (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  title VARCHAR(255),
+  title VARCHAR(255) NOT NULL,
   description TEXT,
-  project_id INT,
+  project_id INT NOT NULL,
   assigned_to INT,
   status ENUM('pending','in-progress','completed') DEFAULT 'pending',
   due_date DATE,
@@ -67,7 +63,7 @@ const initDB = async () => {
   await query(members, "members");
   await query(tasks, "tasks");
 
-  console.log("🚀 DB READY");
+  console.log("🚀 ALL TABLES READY");
 };
 
 pool.getConnection((err, conn) => {
