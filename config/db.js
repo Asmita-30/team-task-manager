@@ -15,27 +15,32 @@ const pool = mysql.createPool({
   queueLimit: 0
 });
 
-console.log("📊 DB Connected Config:", {
-  host: process.env.MYSQLHOST,
-  user: process.env.MYSQLUSER,
-  database: process.env.MYSQLDATABASE,
-  port: process.env.MYSQLPORT
-});
+console.log("📊 DB:", process.env.MYSQLHOST);
 
-const run = (sql, name) => {
+// STRICT SINGLE EXECUTION (IMPORTANT FIX)
+const query = (sql, name) => {
   return new Promise((resolve) => {
-    pool.query(sql, (err) => {
+    pool.getConnection((err, conn) => {
       if (err) {
-        console.error(`❌ ${name} error:`, err.message);
-      } else {
-        console.log(`✅ ${name} ready`);
+        console.error("❌ Connection error:", err.message);
+        return resolve();
       }
-      resolve();
+
+      conn.query(sql, (qerr) => {
+        if (qerr) {
+          console.error(`❌ ${name} error:`, qerr.message);
+        } else {
+          console.log(`✅ ${name} ready`);
+        }
+
+        conn.release();
+        resolve();
+      });
     });
   });
 };
 
-// TABLES (clean)
+// TABLES
 const users = `
 CREATE TABLE IF NOT EXISTS users (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -79,13 +84,14 @@ CREATE TABLE IF NOT EXISTS tasks (
   FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL
 )`;
 
+// INIT (STRICT ORDER + WAIT)
 const initDB = async () => {
-  await run(users, "users");
-  await run(projects, "projects");
-  await run(members, "project_members");
-  await run(tasks, "tasks");
+  await query(users, "users");
+  await query(projects, "projects");
+  await query(members, "project_members");
+  await query(tasks, "tasks");
 
-  console.log("🚀 ALL TABLES READY");
+  console.log("🚀 ALL TABLES CREATED SUCCESSFULLY");
 };
 
 pool.getConnection((err, conn) => {
@@ -94,7 +100,7 @@ pool.getConnection((err, conn) => {
     process.exit(1);
   }
 
-  console.log("✅ MySQL Connected!");
+  console.log("✅ MySQL Connected");
   conn.release();
 
   initDB();
