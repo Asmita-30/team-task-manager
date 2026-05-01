@@ -1,4 +1,4 @@
-const mysql = require('mysql2');
+const mysql = require('mysql2/promise');
 
 const pool = mysql.createPool({
   host: process.env.MYSQLHOST,
@@ -7,75 +7,78 @@ const pool = mysql.createPool({
   database: process.env.MYSQLDATABASE,
   port: Number(process.env.MYSQLPORT || 3306),
   waitForConnections: true,
-  connectionLimit: 10
+  connectionLimit: 10,
+  multipleStatements: false  // explicit safety
 });
 
-const query = (sql, name) => {
-  return new Promise((resolve) => {
-    pool.query(sql, (err) => {
-      if (err) console.error(`❌ ${name}:`, err.message);
-      else console.log(`✅ ${name}`);
-      resolve();
-    });
-  });
-};
+async function initDB() {
+  let conn;
 
-// PURE SQL ONLY (NO EXTRA TEXT ANYWHERE)
-const users = `CREATE TABLE IF NOT EXISTS users (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(100) NOT NULL,
-  email VARCHAR(100) UNIQUE NOT NULL,
-  password VARCHAR(255) NOT NULL,
-  role ENUM('admin','member') DEFAULT 'member',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-)`;
+  try {
+    conn = await pool.getConnection();
+    console.log("✅ MySQL Connected");
 
-const projects = `CREATE TABLE IF NOT EXISTS projects (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(100) NOT NULL,
-  created_by INT NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
-)`;
+    // Run each table separately with individual try/catch for debugging
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        email VARCHAR(100) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        role ENUM('admin','member') DEFAULT 'member',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log("✅ users table ready");
 
-const members = `CREATE TABLE IF NOT EXISTS project_members (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  project_id INT NOT NULL,
-  user_id INT NOT NULL,
-  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-)`;
+await conn.query(`
+  CREATE TABLE IF NOT EXISTS projects (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    created_by INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+  )
+`);
+    console.log("✅ projects table ready");
 
-const tasks = `CREATE TABLE IF NOT EXISTS tasks (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  title VARCHAR(255) NOT NULL,
-  description TEXT,
-  project_id INT NOT NULL,
-  assigned_to INT,
-  status ENUM('pending','in-progress','completed') DEFAULT 'pending',
-  due_date DATE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-)`;
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS project_members (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        project_id INT NOT NULL,
+        user_id INT NOT NULL,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+    console.log("✅ project_members table ready");
 
-const initDB = async () => {
-  await query(users, "users");
-  await query(projects, "projects");
-  await query(members, "members");
-  await query(tasks, "tasks");
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS tasks (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        project_id INT NOT NULL,
+        assigned_to INT,
+        status ENUM('pending','in-progress','completed') DEFAULT 'pending',
+        due_date DATE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL
+      )
+    `);
+    console.log("✅ tasks table ready");
 
-  console.log("🚀 ALL TABLES READY");
-};
+    console.log("🚀 ALL TABLES READY");
 
-pool.getConnection((err, conn) => {
-  if (err) {
-    console.error("❌ DB FAIL:", err.message);
-    return;
+  } catch (err) {
+    console.error("❌ DB ERROR:", err.message);
+    console.error("Full error:", err);
+  } finally {
+    if (conn) conn.release();
   }
+}
 
-  console.log("✅ MYSQL CONNECTED");
-  conn.release();
+initDB();
 
-  initDB();
-});
-
-module.exports = pool.promise();
+module.exports = pool;
