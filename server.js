@@ -14,18 +14,19 @@ const taskRoutes = require('./routes/taskRoutes');
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: process.env.FRONTEND_URL,
+  credentials: true
+}));
 app.use(express.json());
 
 // Test database connection
-db.getConnection((err, connection) => {
-  if (err) {
+db.query('SELECT 1')
+  .then(() => console.log('Connected to MySQL database'))
+  .catch(err => {
     console.error('Database connection failed:', err);
     process.exit(1);
-  }
-  console.log('Connected to MySQL database');
-  connection.release();
-});
+  });
 
 // Routes
 app.use('/api/auth', authRoutes);
