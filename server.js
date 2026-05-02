@@ -1,7 +1,7 @@
 const dotenv = require('dotenv');
 dotenv.config();
 
-const { pool, initDB } = require('./config/db');
+const pool = require('./config/db');
 const express = require('express');
 const cors = require('cors');
 
@@ -33,7 +33,6 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 8080;
 
-app.listen(PORT, '0.0.0.0', async () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
-  await initDB();
 });
