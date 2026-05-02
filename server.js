@@ -1,7 +1,7 @@
 const dotenv = require('dotenv');
 dotenv.config();
 
-const db = require('./config/db');
+const { pool, initDB } = require('./config/db');
 const express = require('express');
 const cors = require('cors');
 
@@ -18,18 +18,9 @@ app.use(cors({
 
 app.use(express.json());
 
-// Home route for Railway health check
 app.get('/', (req, res) => {
   res.send('Team Task Manager Backend is running');
 });
-
-// Test database connection
-db.query('SELECT 1')
-  .then(() => console.log('✅ Connected to MySQL database successfully!'))
-  .catch(err => {
-    console.error('❌ Database connection failed:', err);
-    process.exit(1);
-  });
 
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
@@ -42,6 +33,7 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 8080;
 
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', async () => {
   console.log(`Server running on port ${PORT}`);
+  await initDB();
 });

@@ -1,7 +1,7 @@
 const mysql = require("mysql2/promise");
 require("dotenv").config();
 
-const dbConfig = {
+const pool = mysql.createPool({
   host: process.env.MYSQLHOST,
   user: process.env.MYSQLUSER,
   password: process.env.MYSQLPASSWORD,
@@ -10,29 +10,21 @@ const dbConfig = {
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-};
-
-const pool = mysql.createPool(dbConfig);
-
-async function runQuery(sql) {
-  const conn = await pool.getConnection();
-  try {
-    await conn.query(sql);
-  } finally {
-    conn.release();
-  }
-}
+});
 
 async function initDB() {
+  let conn;
   try {
-    // Test connection first
-    const conn = await pool.getConnection();
+    conn = await pool.getConnection();
     console.log("✅ Connected to MySQL database successfully!");
+
+    await conn.query(`SET FOREIGN_KEY_CHECKS = 0`);
     conn.release();
+    conn = null;
 
-    await runQuery(`SET FOREIGN_KEY_CHECKS = 0`);
-
-    await runQuery(`
+    // --- users ---
+    let c = await pool.getConnection();
+    await c.query(`
       CREATE TABLE IF NOT EXISTS users (
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(100) NOT NULL,
@@ -42,9 +34,12 @@ async function initDB() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB
     `);
+    c.release();
     console.log("✅ users table ready");
 
-    await runQuery(`
+    // --- projects ---
+    c = await pool.getConnection();
+    await c.query(`
       CREATE TABLE IF NOT EXISTS projects (
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(100) NOT NULL,
@@ -53,9 +48,12 @@ async function initDB() {
         FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
       ) ENGINE=InnoDB
     `);
+    c.release();
     console.log("✅ projects table ready");
 
-    await runQuery(`
+    // --- project_members ---
+    c = await pool.getConnection();
+    await c.query(`
       CREATE TABLE IF NOT EXISTS project_members (
         id INT AUTO_INCREMENT PRIMARY KEY,
         project_id INT NOT NULL,
@@ -64,9 +62,12 @@ async function initDB() {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       ) ENGINE=InnoDB
     `);
+    c.release();
     console.log("✅ project_members table ready");
 
-    await runQuery(`
+    // --- tasks ---
+    c = await pool.getConnection();
+    await c.query(`
       CREATE TABLE IF NOT EXISTS tasks (
         id INT AUTO_INCREMENT PRIMARY KEY,
         title VARCHAR(255) NOT NULL,
@@ -80,18 +81,20 @@ async function initDB() {
         FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL
       ) ENGINE=InnoDB
     `);
+    c.release();
     console.log("✅ tasks table ready");
 
-    await runQuery(`SET FOREIGN_KEY_CHECKS = 1`);
+    // --- re-enable FK checks ---
+    c = await pool.getConnection();
+    await c.query(`SET FOREIGN_KEY_CHECKS = 1`);
+    c.release();
 
     console.log("🚀 All tables created successfully!");
   } catch (err) {
+    if (conn) conn.release();
     console.error("❌ Error creating tables:", err.message);
-    console.error("SQL State:", err.sqlState);
-    console.error("SQL:", err.sql);
+    console.error("SQL causing error:", err.sql || "N/A");
   }
 }
 
-initDB();
-
-module.exports = pool;
+module.exports = { pool, initDB };
