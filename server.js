@@ -11,10 +11,28 @@ const taskRoutes = require('./routes/taskRoutes');
 
 const app = express();
 
+// ✅ Allow multiple origins
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://zoological-tranquility-production-9abe.up.railway.app"
+];
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "*",
+  origin: function (origin, callback) {
+    // allow requests like Postman (no origin)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      return callback(new Error("Not allowed by CORS"));
+    }
+  },
   credentials: true
 }));
+
+// ✅ Handle preflight requests
+app.options("*", cors());
 
 app.use(express.json());
 
@@ -28,7 +46,7 @@ app.use('/api/tasks', taskRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).json({ message: 'Something went wrong!' });
+  res.status(500).json({ message: err.message || 'Something went wrong!' });
 });
 
 const PORT = process.env.PORT || 8080;
